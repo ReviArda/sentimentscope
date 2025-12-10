@@ -1,0 +1,14 @@
+flask
+flask-cors
+joblib
+scikit-learn
+flask-sqlalchemy
+flask-jwt-extended
+flask-limiter
+transformers
+torch
+youtube-comment-downloader
+pandas
+openpyxl
+datasets
+accelerate

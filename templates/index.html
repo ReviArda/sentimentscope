@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Sentiment Classification AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        primary: { start: '#6FB8FF', end: '#67AFFF' },
+                        neutral: { heading: '#1A1F36', subheading: '#3D4458', body: '#667085', border: '#E2E8F0', bg: '#F8FBFF' },
+                        sentiment: { pos: '#A6E3C5', neg: '#F5B8C2', neu: '#BFD7EE' }
+                    },
+                    boxShadow: { 'soft': '0 10px 40px rgba(0, 0, 0, 0.03)' },
+                    borderRadius: { '3xl': '24px' },
+                    animation: { 'fade-in': 'fadeIn 0.5s ease-out', 'slide-up': 'slideUp 0.6s ease-out', 'blob': 'blob 7s infinite' },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: #CBD5E1;
+            border-radius: 20px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #94A3B8;
+        }
+
+        .glass-card {
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-[#F8FBFF] text-[#667085] font-sans min-h-screen flex flex-col relative overflow-x-hidden selection:bg-[#6FB8FF] selection:text-white">
+
+    <!-- Background Blobs -->
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div
+            class="absolute top-0 left-1/4 w-96 h-96 bg-[#A6E3C5] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob">
+        </div>
+        <div
+            class="absolute top-0 right-1/4 w-96 h-96 bg-[#BFD7EE] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000">
+        </div>
+        <div
+            class="absolute -bottom-32 left-1/3 w-96 h-96 bg-[#F5B8C2] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000">
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav id="navbar" class="fixed w-full z-50 transition-all duration-300 py-4 px-6 lg:px-12">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#6FB8FF] to-[#67AFFF] flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+                    <i class="fas fa-brain text-lg"></i>
+                </div>
+                <span class="text-xl font-bold text-[#1A1F36] tracking-tight">Sentiment<span
+                        class="text-[#6FB8FF]">Scope</span></span>
+            </div>
+            <!-- Navigation Links -->
+            <div class="hidden md:flex items-center gap-8 ml-8 mr-auto">
+                <button onclick="showPage('home')"
+                    class="text-sm font-medium text-[#667085] hover:text-[#1A1F36] transition-colors">Beranda</button>
+                <button onclick="showPage('guide')"
+                    class="text-sm font-medium text-[#667085] hover:text-[#1A1F36] transition-colors">Panduan</button>
+                <button onclick="showPage('about')"
+                    class="text-sm font-medium text-[#667085] hover:text-[#1A1F36] transition-colors">Tentang</button>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="auth_buttons">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow pt-32 pb-20 px-4 sm:px-6">
+        <div class="max-w-5xl mx-auto">
+
+            <!-- Header -->
+            <div class="text-center mb-12 animate-fade-in">
+                <span
+                    class="inline-block py-1 px-3 rounded-full bg-blue-50 text-[#6FB8FF] text-xs font-semibold tracking-wider mb-4 uppercase">AI
+                    Powered Analysis</span>
+                <h1 class="text-4xl md:text-5xl font-bold text-[#1A1F36] mb-4 tracking-tight leading-tight">
+                    Analisis Sentimen <br class="hidden md:block" /> <span
+                        class="text-transparent bg-clip-text bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF]">Publik &
+                        Sosial</span>
+                </h1>
+                <p class="text-lg text-[#667085] max-w-2xl mx-auto leading-relaxed">
+                    Temukan makna di balik kata-kata. Klasifikasikan opini publik secara instan dengan kecerdasan buatan
+                    tingkat lanjut.
+                </p>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="flex justify-center mb-8 animate-fade-in">
+                <div class="bg-[#EEF2F7] p-1 rounded-2xl inline-flex">
+                    <button id="tab_analyze" onclick="switchTab('analyze')"
+                        class="px-6 py-2 rounded-xl text-sm font-medium transition-all duration-200 bg-white text-[#1A1F36] shadow-sm">
+                        <i class="fas fa-search mr-2"></i>Analisis
+                    </button>
+                    <button id="tab_dashboard" onclick="switchTab('dashboard')"
+                        class="px-6 py-2 rounded-xl text-sm font-medium transition-all duration-200 text-[#667085] hover:text-[#1A1F36]">
+                        <i class="fas fa-chart-pie mr-2"></i>Dashboard
+                    </button>
+                    <button id="tab_social" onclick="switchTab('social')"
+                        class="px-6 py-2 rounded-xl text-sm font-medium transition-all duration-200 text-[#667085] hover:text-[#1A1F36]">
+                        <i class="fas fa-hashtag mr-2"></i>Social
+                    </button>
+                    <button id="tab_batch" onclick="switchTab('batch')"
+                        class="px-6 py-2 rounded-xl text-sm font-medium transition-all duration-200 text-[#667085] hover:text-[#1A1F36]">
+                        <i class="fas fa-file-csv mr-2"></i>Batch
+                    </button>
+                    <button id="tab_training" onclick="switchTab('training')"
+                        class="px-6 py-2 rounded-xl text-sm font-medium transition-all duration-200 text-[#667085] hover:text-[#1A1F36]">
+                        <i class="fas fa-dumbbell mr-2"></i>Training
+                    </button>
+                </div>
+            </div>
+
+            <!-- Analyze View -->
+            <div id="analyze_view" class="animate-slide-up">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Input Section -->
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="glass-card rounded-3xl p-1 shadow-soft border border-white/50">
+                            <div class="bg-white/50 rounded-[20px] p-6">
+                                <label class="block text-sm font-semibold text-[#3D4458] mb-3 ml-1">Teks
+                                    Analisis</label>
+                                <textarea id="inputText" rows="5"
+                                    class="w-full bg-[#F8FBFF] border border-[#E2E8F0] rounded-xl p-4 text-[#1A1F36] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#6FB8FF]/50 focus:border-[#6FB8FF] transition-all resize-none text-base leading-relaxed"
+                                    placeholder="Masukkan teks berita, komentar sosial media, atau ulasan produk di sini..."></textarea>
+                                <div class="flex justify-between items-center mt-3 px-1">
+                                    <span id="charCount" class="text-xs text-[#94A3B8] font-medium">0 / 500
+                                        karakter</span>
+                                    <div class="flex gap-3">
+                                        <button id="clearBtn"
+                                            class="text-xs text-[#94A3B8] hover:text-[#667085] font-medium transition-colors hidden">
+                                            Hapus
+                                        </button>
+                                        <button id="analyzeBtn"
+                                            class="bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF] text-white px-6 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2">
+                                            <span>Analisis Sekarang</span>
+                                            <i class="fas fa-arrow-right text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Result Section -->
+                        <div id="resultCard"
+                            class="hidden glass-card rounded-3xl p-8 shadow-soft border border-white/50 text-center relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF]">
+                            </div>
+                            <div class="mb-2">
+                                <span class="text-xs font-bold tracking-wider text-[#94A3B8] uppercase">Hasil
+                                    Deteksi</span>
+                            </div>
+                            <h2 id="sentimentLabel" class="text-3xl font-bold text-[#1A1F36] mb-2">Positif</h2>
+                            <div class="flex justify-center items-center gap-2 mb-6">
+                                <span id="sentimentIcon" class="text-2xl">😊</span>
+                                <span id="confidenceScore"
+                                    class="text-sm font-medium px-3 py-1 rounded-full bg-blue-50 text-[#6FB8FF]">98%
+                                    Confidence</span>
+                            </div>
+                            <p id="sentimentDesc" class="text-[#667085] text-sm leading-relaxed max-w-md mx-auto">
+                                Teks ini mengandung sentimen positif yang kuat, kemungkinan besar mengekspresikan
+                                kepuasan atau kebahagiaan.
+                            </p>
+
+                            <!-- Aspect Based Sentiment Section -->
+                            <div id="aspectSection" class="mt-6 pt-6 border-t border-[#EEF2F7] hidden">
+                                <h3 class="text-sm font-bold text-[#3D4458] mb-3">Analisis Aspek</h3>
+                                <div id="aspectList" class="flex flex-wrap justify-center gap-2">
+                                    <!-- Aspect items will be injected here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar Stats -->
+                    <div class="space-y-6">
+                        <!-- Stats Card -->
+                        <div class="glass-card rounded-3xl p-6 shadow-soft border border-white/50">
+                            <h3 class="text-[#1A1F36] font-bold mb-6 flex items-center gap-2">
+                                <i class="fas fa-chart-bar text-[#6FB8FF]"></i> Statistik Sesi
+                            </h3>
+                            <div class="space-y-5">
+                                <!-- Positive Bar -->
+                                <div>
+                                    <div class="flex justify-between text-xs font-medium mb-2">
+                                        <span class="text-[#3D4458]">Positif</span>
+                                        <span id="countPos" class="text-[#1A1F36]">0%</span>
+                                    </div>
+                                    <div class="w-full bg-[#EEF2F7] rounded-full h-2.5 overflow-hidden">
+                                        <div id="barPos"
+                                            class="h-full bg-[#A6E3C5] rounded-full transition-all duration-1000 ease-out"
+                                            style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <!-- Negative Bar -->
+                                <div>
+                                    <div class="flex justify-between text-xs font-medium mb-2">
+                                        <span class="text-[#3D4458]">Negatif</span>
+                                        <span id="countNeg" class="text-[#1A1F36]">0%</span>
+                                    </div>
+                                    <div class="w-full bg-[#EEF2F7] rounded-full h-2.5 overflow-hidden">
+                                        <div id="barNeg"
+                                            class="h-full bg-[#F5B8C2] rounded-full transition-all duration-1000 ease-out"
+                                            style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <!-- Neutral Bar -->
+                                <div>
+                                    <div class="flex justify-between text-xs font-medium mb-2">
+                                        <span class="text-[#3D4458]">Netral</span>
+                                        <span id="countNeu" class="text-[#1A1F36]">0%</span>
+                                    </div>
+                                    <div class="w-full bg-[#EEF2F7] rounded-full h-2.5 overflow-hidden">
+                                        <div id="barNeu"
+                                            class="h-full bg-[#BFD7EE] rounded-full transition-all duration-1000 ease-out"
+                                            style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-6 pt-6 border-t border-[#EEF2F7] flex justify-between items-center">
+                                <span class="text-xs text-[#94A3B8] font-medium">Total Analisis</span>
+                                <span id="totalCount" class="text-xl font-bold text-[#1A1F36]">0</span>
+                            </div>
+                        </div>
+
+                        <!-- History Card -->
+                        <div class="glass-card rounded-3xl p-6 shadow-soft border border-white/50">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-[#1A1F36] font-bold flex items-center gap-2">
+                                    <i class="fas fa-history text-[#6FB8FF]"></i> Riwayat
+                                </h3>
+                                <button id="clearHistoryBtn"
+                                    class="text-[10px] text-[#94A3B8] hover:text-[#F5B8C2] font-semibold uppercase tracking-wider transition-colors hidden">
+                                    Hapus
+                                </button>
+                            </div>
+                            <div class="overflow-hidden max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                                <table class="w-full">
+                                    <tbody id="historyList" class="text-sm">
+                                        <!-- History Items -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard View -->
+            <div id="dashboard_view" class="hidden animate-fade-in">
+
+                <!-- Login Required Message -->
+                <div id="dashboard_login_msg"
+                    class="hidden flex flex-col items-center justify-center py-20 text-center bg-white/50 backdrop-blur-sm rounded-3xl border border-white/50 shadow-soft">
+                    <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-lock text-[#6FB8FF] text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-[#1A1F36] mb-2">Akses Terbatas</h3>
+                    <p class="text-[#667085] mb-6 max-w-md">Silakan masuk ke akun Anda untuk melihat statistik dashboard
+                        global, tren sentimen harian, dan word cloud.</p>
+                    <button onclick="document.getElementById('loginModal').classList.remove('hidden')"
+                        class="px-6 py-2.5 bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF] text-white rounded-xl font-medium shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all transform hover:-translate-y-0.5">
+                        Masuk Sekarang
+                    </button>
+                </div>
+
+                <!-- Dashboard Content -->
+                <div id="dashboard_content" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Trend Chart -->
+                    <div class="glass-card rounded-3xl p-6 shadow-soft border border-white/50 h-96 flex flex-col">
+                        <h3 class="text-[#1A1F36] font-bold mb-4 flex items-center gap-2">
+                            <i class="fas fa-chart-line text-[#6FB8FF]"></i> Tren Sentimen (7 Hari)
+                        </h3>
+                        <div class="flex-grow relative">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Word Cloud -->
+                    <div class="glass-card rounded-3xl p-6 shadow-soft border border-white/50 h-96 flex flex-col">
+                        <h3 class="text-[#1A1F36] font-bold mb-4 flex items-center gap-2">
+                            <i class="fas fa-cloud text-[#6FB8FF]"></i> Word Cloud
+                        </h3>
+                        <div
+                            class="flex-grow relative flex items-center justify-center bg-[#F8FBFF]/50 rounded-2xl border border-[#EEF2F7]">
+                            <div id="wordcloud_loading"
+                                class="absolute inset-0 flex items-center justify-center bg-white/80 z-10 hidden">
+                                <i class="fas fa-spinner fa-spin text-[#6FB8FF] text-2xl"></i>
+                            </div>
+                            <canvas id="wordCloudCanvas" class="w-full h-full"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Social Media View -->
+            <div id="social_view" class="hidden animate-fade-in">
+                <div class="max-w-3xl mx-auto space-y-8">
+                    <!-- Input Card -->
+                    <div class="glass-card rounded-3xl p-8 shadow-soft border border-white/50">
+                        <h3 class="text-[#1A1F36] font-bold mb-4 flex items-center gap-2">
+                            <i class="fab fa-youtube text-[#FF0000] text-xl"></i> Analisis Komentar YouTube
+                        </h3>
+                        <div class="flex gap-3">
+                            <input type="text" id="socialUrl"
+                                class="flex-grow bg-[#F8FBFF] border border-[#E2E8F0] rounded-xl px-4 py-3 text-[#1A1F36] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#6FB8FF]/50"
+                                placeholder="Tempel URL Video YouTube di sini...">
+                            <button id="analyzeSocialBtn"
+                                class="bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF] text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all whitespace-nowrap">
+                                Analisis
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Social Results -->
+                    <div id="socialResult" class="hidden space-y-6">
+                        <!-- Summary Stats -->
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="glass-card rounded-2xl p-4 text-center border-b-4 border-[#A6E3C5]">
+                                <span
+                                    class="block text-xs text-[#667085] uppercase tracking-wider font-semibold mb-1">Positif</span>
+                                <span id="socialPos" class="text-2xl font-bold text-[#1A1F36]">0</span>
+                            </div>
+                            <div class="glass-card rounded-2xl p-4 text-center border-b-4 border-[#F5B8C2]">
+                                <span
+                                    class="block text-xs text-[#667085] uppercase tracking-wider font-semibold mb-1">Negatif</span>
+                                <span id="socialNeg" class="text-2xl font-bold text-[#1A1F36]">0</span>
+                            </div>
+                            <div class="glass-card rounded-2xl p-4 text-center border-b-4 border-[#BFD7EE]">
+                                <span
+                                    class="block text-xs text-[#667085] uppercase tracking-wider font-semibold mb-1">Netral</span>
+                                <span id="socialNeu" class="text-2xl font-bold text-[#1A1F36]">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Comments List -->
+                        <div class="glass-card rounded-3xl p-6 shadow-soft border border-white/50">
+                            <h4 class="text-[#1A1F36] font-bold mb-4">Sampel Komentar</h4>
+                            <div class="space-y-3 max-h-96 overflow-y-auto pr-2" id="socialCommentsList">
+                                <!-- Injected by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batch Analysis View -->
+            <div id="batch_view" class="hidden animate-fade-in">
+                <div class="max-w-4xl mx-auto space-y-8">
+                    <!-- Upload Card -->
+                    <div class="glass-card rounded-3xl p-8 shadow-soft border border-white/50 text-center">
+                        <h3 class="text-[#1A1F36] font-bold mb-2 flex items-center justify-center gap-2">
+                            <i class="fas fa-file-upload text-[#6FB8FF] text-xl"></i> Upload File CSV/Excel
+                        </h3>
+                        <p class="text-[#667085] text-sm mb-6">Analisis ribuan ulasan sekaligus. Pastikan ada kolom
+                            'text', 'review', atau 'komentar'.</p>
+
+                        <div id="dropZone"
+                            class="border-2 border-dashed border-[#CBD5E1] rounded-2xl p-10 transition-colors hover:border-[#6FB8FF] hover:bg-[#F8FBFF] cursor-pointer relative">
+                            <input type="file" id="batchFile"
+                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv, .xlsx">
+                            <div class="space-y-3 pointer-events-none">
+                                <div
+                                    class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-[#6FB8FF]">
+                                    <i class="fas fa-cloud-upload-alt text-2xl"></i>
+                                </div>
+                                <p class="text-[#3D4458] font-medium">Drag & Drop file di sini</p>
+                                <p class="text-xs text-[#94A3B8]">atau klik untuk memilih file</p>
+                            </div>
+                        </div>
+                        <div id="fileInfo"
+                            class="hidden mt-4 flex items-center justify-center gap-3 bg-blue-50 py-2 px-4 rounded-lg inline-flex">
+                            <i class="fas fa-file-alt text-[#6FB8FF]"></i>
+                            <span id="fileName" class="text-sm text-[#3D4458] font-medium">filename.csv</span>
+                            <button id="removeFileBtn" class="text-[#F5B8C2] hover:text-red-500"><i
+                                    class="fas fa-times"></i></button>
+                        </div>
+
+                        <button id="analyzeBatchBtn" disabled
+                            class="mt-6 bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF] text-white px-8 py-3 rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            Mulai Analisis Batch
+                        </button>
+                    </div>
+
+                    <!-- Batch Results -->
+                    <div id="batchResult" class="hidden space-y-6">
+                        <!-- Summary Stats -->
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="glass-card rounded-2xl p-4 text-center border-b-4 border-[#A6E3C5]">
+                                <span
+                                    class="block text-xs text-[#667085] uppercase tracking-wider font-semibold mb-1">Positif</span>
+                                <span id="batchPos" class="text-2xl font-bold text-[#1A1F36]">0</span>
+                            </div>
+                            <div class="glass-card rounded-2xl p-4 text-center border-b-4 border-[#F5B8C2]">
+                                <span
+                                    class="block text-xs text-[#667085] uppercase tracking-wider font-semibold mb-1">Negatif</span>
+                                <span id="batchNeg" class="text-2xl font-bold text-[#1A1F36]">0</span>
+                            </div>
+                            <div class="glass-card rounded-2xl p-4 text-center border-b-4 border-[#BFD7EE]">
+                                <span
+                                    class="block text-xs text-[#667085] uppercase tracking-wider font-semibold mb-1">Netral</span>
+                                <span id="batchNeu" class="text-2xl font-bold text-[#1A1F36]">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="glass-card rounded-3xl p-6 shadow-soft border border-white/50 overflow-hidden">
+                            <div class="flex justify-between items-center mb-4">
+                                <h4 class="text-[#1A1F36] font-bold">Preview Hasil</h4>
+                                <button id="downloadCsvBtn"
+                                    class="text-sm text-[#6FB8FF] font-medium hover:underline flex items-center gap-2">
+                                    <i class="fas fa-download"></i> Download CSV
+                                </button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left">
+                                    <thead
+                                        class="text-xs text-[#667085] uppercase bg-[#F8FBFF] border-b border-[#EEF2F7]">
+                                        <tr>
+                                            <th class="px-4 py-3 rounded-tl-lg">Teks</th>
+                                            <th class="px-4 py-3">Sentimen</th>
+                                            <th class="px-4 py-3 rounded-tr-lg">Confidence</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="batchTableBody" class="text-[#3D4458]">
+                                        <!-- Rows injected here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-xs text-[#94A3B8] mt-4 text-center italic">* Menampilkan 10 hasil pertama.
+                                Download CSV untuk hasil lengkap.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Training View -->
+        <div id="training_view" class="hidden animate-fade-in">
+            <div class="max-w-4xl mx-auto space-y-8">
+                <!-- Upload Card -->
+                <div class="glass-card rounded-3xl p-8 shadow-soft border border-white/50 text-center">
+                    <h3 class="text-[#1A1F36] font-bold mb-2 flex items-center justify-center gap-2">
+                        <i class="fas fa-dumbbell text-[#6FB8FF] text-xl"></i> Upload Training Data
+                    </h3>
+                    <p class="text-[#667085] text-sm mb-6">Upload file CSV dengan kolom 'text' dan 'label'
+                        (Positif/Negatif/Netral) untuk melatih ulang model.</p>
+
+                    <div id="trainDropZone"
+                        class="border-2 border-dashed border-[#CBD5E1] rounded-2xl p-10 transition-colors hover:border-[#6FB8FF] hover:bg-[#F8FBFF] cursor-pointer relative">
+                        <input type="file" id="trainFile"
+                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv">
+                        <div class="space-y-3 pointer-events-none">
+                            <div
+                                class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-[#6FB8FF]">
+                                <i class="fas fa-cloud-upload-alt text-2xl"></i>
+                            </div>
+                            <p class="text-[#3D4458] font-medium">Drag & Drop file CSV di sini</p>
+                            <p class="text-xs text-[#94A3B8]">atau klik untuk memilih file</p>
+                        </div>
+                    </div>
+                    <div id="trainFileInfo"
+                        class="hidden mt-4 flex items-center justify-center gap-3 bg-blue-50 py-2 px-4 rounded-lg inline-flex">
+                        <i class="fas fa-file-alt text-[#6FB8FF]"></i>
+                        <span id="trainFileName" class="text-sm text-[#3D4458] font-medium">filename.csv</span>
+                        <button id="removeTrainFileBtn" class="text-[#F5B8C2] hover:text-red-500"><i
+                                class="fas fa-times"></i></button>
+                    </div>
+
+                    <button id="startTrainingBtn" disabled
+                        class="mt-6 bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF] text-white px-8 py-3 rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        Mulai Training
+                    </button>
+                </div>
+
+                <!-- Training Status -->
+                <div id="trainingStatus"
+                    class="hidden glass-card rounded-3xl p-6 shadow-soft border border-white/50 text-center">
+                    <div class="animate-pulse">
+                        <i class="fas fa-cog fa-spin text-4xl text-[#6FB8FF] mb-4"></i>
+                        <h4 class="text-[#1A1F36] font-bold mb-2">Sedang Melatih Model...</h4>
+                        <p class="text-[#667085] text-sm">Proses ini mungkin memakan waktu beberapa menit. Mohon
+                            jangan tutup halaman ini.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Guide View -->
+        <div id="guide_view" class="hidden animate-fade-in">
+            <div class="max-w-6xl mx-auto">
+
+                <!-- Hero Guide -->
+                <div class="text-center mb-12">
+                    <div class="inline-block p-3 rounded-2xl bg-white shadow-soft mb-4">
+                        <i class="fas fa-book-reader text-3xl text-[#6FB8FF]"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-[#1A1F36] mb-4">Panduan Penggunaan</h2>
+                    <p class="text-[#667085] max-w-2xl mx-auto">
+                        Maksimalkan potensi SentimentScope dengan memahami setiap fiturnya. Pilih topik di bawah ini
+                        untuk mempelajari lebih lanjut.
+                    </p>
+                </div>
+
+                <!-- Feature Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+
+                    <!-- Card 1: Instant Analysis -->
+                    <div
+                        class="glass-card rounded-3xl p-8 hover:-translate-y-2 transition-transform duration-300 border border-white/50 group">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-blue-50 text-[#6FB8FF] flex items-center justify-center text-xl mb-6 group-hover:bg-[#6FB8FF] group-hover:text-white transition-colors">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-[#1A1F36] mb-3">Analisis Satuan</h3>
+                        <p class="text-[#667085] text-sm leading-relaxed mb-6">
+                            Deteksi sentimen secara instan untuk teks singkat seperti satu ulasan produk, caption, atau
+                            tweet.
+                        </p>
+                        <div class="bg-[#F8FBFF] rounded-xl p-4 border border-[#EEF2F7]">
+                            <h4 class="text-xs font-bold text-[#3D4458] uppercase tracking-wider mb-2">Cara Pakai:</h4>
+                            <ol class="list-decimal list-inside text-sm text-[#667085] space-y-1">
+                                <li>Buka tab <strong>Analisis</strong>.</li>
+                                <li>Ketik teks di kolom input.</li>
+                                <li>Klik tombol <strong>Analisis Sekarang</strong>.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Batch Analysis -->
+                    <div
+                        class="glass-card rounded-3xl p-8 hover:-translate-y-2 transition-transform duration-300 border border-white/50 group">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-emerald-50 text-[#10B981] flex items-center justify-center text-xl mb-6 group-hover:bg-[#10B981] group-hover:text-white transition-colors">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-[#1A1F36] mb-3">Analisis Batch</h3>
+                        <p class="text-[#667085] text-sm leading-relaxed mb-6">
+                            Hemat waktu dengan menganalisis ribuan data sekaligus menggunakan file CSV atau Excel.
+                        </p>
+                        <div class="bg-[#F8FBFF] rounded-xl p-4 border border-[#EEF2F7]">
+                            <h4 class="text-xs font-bold text-[#3D4458] uppercase tracking-wider mb-2">Cara Pakai:</h4>
+                            <ol class="list-decimal list-inside text-sm text-[#667085] space-y-1">
+                                <li>Siapkan file <code>.csv</code> atau <code>.xlsx</code>.</li>
+                                <li>Pastikan ada kolom <code>text</code> / <code>review</code>.</li>
+                                <li>Upload di tab <strong>Batch</strong> & Analisis.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Social Intel -->
+                    <div
+                        class="glass-card rounded-3xl p-8 hover:-translate-y-2 transition-transform duration-300 border border-white/50 group">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-red-50 text-[#EF4444] flex items-center justify-center text-xl mb-6 group-hover:bg-[#EF4444] group-hover:text-white transition-colors">
+                            <i class="fab fa-youtube"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-[#1A1F36] mb-3">Social Intelligence</h3>
+                        <p class="text-[#667085] text-sm leading-relaxed mb-6">
+                            Pahami opini audiens Anda dengan menarik data komentar langsung dari video YouTube.
+                        </p>
+                        <div class="bg-[#F8FBFF] rounded-xl p-4 border border-[#EEF2F7]">
+                            <h4 class="text-xs font-bold text-[#3D4458] uppercase tracking-wider mb-2">Cara Pakai:</h4>
+                            <ol class="list-decimal list-inside text-sm text-[#667085] space-y-1">
+                                <li>Salin URL video YouTube.</li>
+                                <li>Tempel di kolom input tab <strong>Social</strong>.</li>
+                                <li>Klik <strong>Analisis</strong> dan tunggu hasil.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Fine Tuning -->
+                    <div
+                        class="glass-card rounded-3xl p-8 hover:-translate-y-2 transition-transform duration-300 border border-white/50 group">
+                        <div
+                            class="w-14 h-14 rounded-2xl bg-purple-50 text-[#8B5CF6] flex items-center justify-center text-xl mb-6 group-hover:bg-[#8B5CF6] group-hover:text-white transition-colors">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-[#1A1F36] mb-3">Smart Training</h3>
+                        <p class="text-[#667085] text-sm leading-relaxed mb-6">
+                            Ajarkan AI untuk memahami konteks spesifik bisnis Anda dengan data kustom.
+                        </p>
+                        <div class="bg-[#F8FBFF] rounded-xl p-4 border border-[#EEF2F7]">
+                            <h4 class="text-xs font-bold text-[#3D4458] uppercase tracking-wider mb-2">Cara Pakai:</h4>
+                            <ol class="list-decimal list-inside text-sm text-[#667085] space-y-1">
+                                <li>Siapkan CSV (kolom: <code>text</code>, <code>label</code>).</li>
+                                <li>Upload di tab <strong>Training</strong>.</li>
+                                <li>Tunggu proses fine-tuning selesai.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- FAQ / Tips Section -->
+                <div class="glass-card rounded-3xl p-8 shadow-soft border border-white/50">
+                    <h3 class="text-xl font-bold text-[#1A1F36] mb-6 flex items-center gap-2">
+                        <i class="fas fa-lightbulb text-yellow-400"></i> Tips & Trik
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="flex gap-4">
+                            <div class="w-1 h-full bg-[#6FB8FF] rounded-full"></div>
+                            <div>
+                                <h4 class="font-bold text-[#1A1F36] text-sm">Gunakan Bahasa Baku</h4>
+                                <p class="text-xs text-[#667085] mt-1">Meskipun AI bisa memahami slang, bahasa baku
+                                    memberikan hasil akurasi tertinggi hingga 99%.</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="w-1 h-full bg-[#6FB8FF] rounded-full"></div>
+                            <div>
+                                <h4 class="font-bold text-[#1A1F36] text-sm">Koreksi Manual</h4>
+                                <p class="text-xs text-[#667085] mt-1">Jika hasil prediksi salah, Anda bisa
+                                    mengoreksinya di tabel Riwayat (khusus user login).</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="w-1 h-full bg-[#6FB8FF] rounded-full"></div>
+                            <div>
+                                <h4 class="font-bold text-[#1A1F36] text-sm">Format Tanggal CSV</h4>
+                                <p class="text-xs text-[#667085] mt-1">Untuk analisis batch, pastikan tidak ada karakter
+                                    aneh di dalam file CSV Anda (gunakan UTF-8).</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="w-1 h-full bg-[#6FB8FF] rounded-full"></div>
+                            <div>
+                                <h4 class="font-bold text-[#1A1F36] text-sm">Perbarui Model Berkala</h4>
+                                <p class="text-xs text-[#667085] mt-1">Lakukan training ulang setiap bulan jika trend
+                                    bahasa atau topik pembicaraan berubah.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- About View -->
+        <div id="about_view" class="hidden animate-fade-in">
+            <div class="max-w-3xl mx-auto">
+                <!-- Hero Card -->
+                <div class="glass-card rounded-3xl p-8 shadow-soft border border-white/50 text-center mb-8">
+                    <div
+                        class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#6FB8FF] to-[#67AFFF] flex items-center justify-center text-white shadow-lg shadow-blue-500/30 mx-auto mb-6">
+                        <i class="fas fa-brain text-3xl"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-[#1A1F36] mb-4">Tentang SentimentScope</h2>
+                    <p class="text-[#667085] text-lg leading-relaxed">
+                        Aplikasi analisis sentimen berbasis Deep Learning yang dirancang khusus untuk memahami nuansa
+                        Bahasa Indonesia.
+                        Dibangun dengan teknologi terkini untuk memberikan wawasan yang cepat, akurat, dan dapat
+                        diandalkan.
+                    </p>
+                </div>
+
+                <!-- Tech Stack -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="glass-card rounded-2xl p-6 border border-white/50">
+                        <h3 class="text-[#1A1F36] font-bold mb-3 flex items-center gap-2">
+                            <i class="fas fa-microchip text-[#6FB8FF]"></i> Teknologi AI
+                        </h3>
+                        <p class="text-sm text-[#667085] leading-relaxed">
+                            Didukung oleh <strong>IndoBERT</strong> (Bidirectional Encoder Representations from
+                            Transformers), model bahasa mutakhir yang telah dilatih pada jutaan kata Bahasa Indonesia
+                            untuk memahami konteks, slang, dan idiom lokal.
+                        </p>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6 border border-white/50">
+                        <h3 class="text-[#1A1F36] font-bold mb-3 flex items-center gap-2">
+                            <i class="fas fa-layer-group text-[#6FB8FF]"></i> Fitur Unggulan
+                        </h3>
+                        <ul class="text-sm text-[#667085] space-y-2">
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-[#A6E3C5]"></i> Real-time
+                                Analysis</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-[#A6E3C5]"></i> Batch
+                                Processing (CSV/Excel)</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-[#A6E3C5]"></i> Social Media
+                                Scraping</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-[#A6E3C5]"></i> Custom
+                                Training & Fine-Tuning</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Developer Info (Optional) -->
+                <div class="text-center text-sm text-[#94A3B8]">
+                    <p>Dikembangkan sebagai Proyek UAS - SCERDAS</p>
+                    <p class="mt-1">Version 1.0.0 &bull; 2024</p>
+                </div>
+            </div>
+        </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-8 text-center text-sm text-[#94A3B8]">
+        <p>&copy; 2024 SentimentScope AI. All rights reserved.</p>
+    </footer>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog"
+        aria-modal="true">
+        <div class="fixed inset-0 bg-[#1A1F36]/20 backdrop-blur-sm transition-opacity"
+            onclick="document.getElementById('loginModal').classList.add('hidden')"></div>
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div
+                    class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md border border-[#E2E8F0]">
+                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                        <div class="sm:flex sm:items-start">
+                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
+                                <h3 class="text-xl font-bold leading-6 text-[#1A1F36] mb-4" id="modal-title">Masuk Akun
+                                </h3>
+                                <div class="mt-2 space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-[#3D4458] mb-1">Username</label>
+                                        <input type="text" id="loginUsername"
+                                            class="w-full border border-[#E2E8F0] rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6FB8FF]/50">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-[#3D4458] mb-1">Password</label>
+                                        <input type="password" id="loginPassword"
+                                            class="w-full border border-[#E2E8F0] rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6FB8FF]/50">
+                                    </div>
+                                    <p id="loginError" class="text-xs text-[#F5B8C2] hidden"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-[#F8FBFF] px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                        <button type="button" id="confirmLoginBtn"
+                            class="inline-flex w-full justify-center rounded-xl bg-[#6FB8FF] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#67AFFF] sm:ml-3 sm:w-auto transition-colors">Masuk</button>
+                        <button type="button"
+                            class="mt-3 inline-flex w-full justify-center rounded-xl bg-white px-3 py-2 text-sm font-semibold text-[#667085] shadow-sm ring-1 ring-inset ring-[#E2E8F0] hover:bg-[#F8FBFF] sm:mt-0 sm:w-auto transition-colors"
+                            onclick="document.getElementById('loginModal').classList.add('hidden')">Batal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog"
+        aria-modal="true">
+        <div class="fixed inset-0 bg-[#1A1F36]/20 backdrop-blur-sm transition-opacity"
+            onclick="document.getElementById('feedbackModal').classList.add('hidden')"></div>
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div
+                    class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-sm border border-[#E2E8F0]">
+                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                        <h3 class="text-lg font-bold leading-6 text-[#1A1F36] mb-4">Koreksi Sentimen</h3>
+                        <p class="text-sm text-[#667085] mb-4">Menurut Anda, apa sentimen yang benar untuk teks ini?</p>
+                        <input type="hidden" id="feedbackAnalysisId">
+                        <div class="space-y-2">
+                            <button onclick="submitFeedback('Positif')"
+                                class="w-full py-2 rounded-xl border border-[#A6E3C5] bg-[#F0FDF4] text-[#1A1F36] hover:bg-[#A6E3C5] transition-colors font-medium text-sm">Positif
+                                😊</button>
+                            <button onclick="submitFeedback('Negatif')"
+                                class="w-full py-2 rounded-xl border border-[#F5B8C2] bg-[#FEF2F2] text-[#1A1F36] hover:bg-[#F5B8C2] transition-colors font-medium text-sm">Negatif
+                                😔</button>
+                            <button onclick="submitFeedback('Netral')"
+                                class="w-full py-2 rounded-xl border border-[#BFD7EE] bg-[#F0F9FF] text-[#1A1F36] hover:bg-[#BFD7EE] transition-colors font-medium text-sm">Netral
+                                😐</button>
+                        </div>
+                    </div>
+                    <div class="bg-[#F8FBFF] px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                        <button type="button"
+                            class="inline-flex w-full justify-center rounded-xl bg-white px-3 py-2 text-sm font-semibold text-[#667085] shadow-sm ring-1 ring-inset ring-[#E2E8F0] hover:bg-[#F8FBFF] sm:mt-0 sm:w-auto transition-colors"
+                            onclick="document.getElementById('feedbackModal').classList.add('hidden')">Batal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+
+</html>

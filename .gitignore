@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Database
+instance/
+*.sqlite
+*.db
+
+# Model & Large Files
+fine_tuned_model/
+*.safetensors
+*.bin
+
+# Logs & Debug
+app.log
+debug_*.txt
+
+# Uploads
+uploads/
+
+# Environment Variables
+.env
