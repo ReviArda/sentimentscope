@@ -1,5 +1,10 @@
 import logging
 import sys
+import os
+
+# Add parent directory to path to import modules from root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from train import train
 
 # Configure logging to stdout

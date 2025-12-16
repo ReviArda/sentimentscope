@@ -4,7 +4,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
 from datasets import Dataset
 
-from models import Analysis
+from app.models.user import Analysis
 import pandas as pd
 
 # Configuration
@@ -67,7 +67,8 @@ def train(data_path=None):
             labels = [item.correction for item in corrected_data]
 
     # 2. Prepare Dataset
-    # Map labels to integers
+    # Map labels to integers (Matches w11wo/indonesian-roberta-base-sentiment-classifier config)
+    # 0: positive, 1: neutral, 2: negative
     label_map = {'Positif': 0, 'Netral': 1, 'Negatif': 2}
     try:
         numeric_labels = [label_map[l] for l in labels]

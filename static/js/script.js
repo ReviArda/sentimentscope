@@ -191,15 +191,11 @@ function init() {
     if (analyzeBatchBtn) analyzeBatchBtn.addEventListener('click', analyzeBatch);
     if (downloadCsvBtn) downloadCsvBtn.addEventListener('click', downloadBatchCsv);
 
-    // Training Listeners
-    if (trainFile) trainFile.addEventListener('change', handleTrainFileSelect);
-    if (trainDropZone) {
-        trainDropZone.addEventListener('dragover', (e) => { e.preventDefault(); trainDropZone.classList.add('border-[#6FB8FF]', 'bg-[#F8FBFF]'); });
-        trainDropZone.addEventListener('dragleave', (e) => { e.preventDefault(); trainDropZone.classList.remove('border-[#6FB8FF]', 'bg-[#F8FBFF]'); });
-        trainDropZone.addEventListener('drop', handleTrainFileDrop);
+    // Training disabled
+    if (startTrainingBtn) {
+        startTrainingBtn.disabled = true;
+        startTrainingBtn.addEventListener('click', () => alert('Fitur training sementara dinonaktifkan.'));
     }
-    if (removeTrainFileBtn) removeTrainFileBtn.addEventListener('click', removeTrainFile);
-    if (startTrainingBtn) startTrainingBtn.addEventListener('click', startTraining);
 }
 
 function checkAuthState() {
@@ -466,11 +462,12 @@ function handleFileDrop(e) {
     e.preventDefault();
     dropZone.classList.remove('border-[#6FB8FF]', 'bg-[#F8FBFF]');
     const file = e.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx'))) {
+    const allowed = ['.csv', '.xlsx', '.xls', '.json', '.txt'];
+    if (file && allowed.some(ext => file.name.toLowerCase().endsWith(ext))) {
         batchFile.files = e.dataTransfer.files;
         showFileInfo(file);
     } else {
-        alert('Harap upload file CSV atau Excel.');
+        alert('Harap upload file CSV, Excel (xlsx/xls), JSON, atau TXT.');
     }
 }
 
@@ -663,9 +660,66 @@ async function pollTrainingStatus() {
     }, 2000); // Check every 2 seconds
 }
 
+// Platform selection
+let selectedPlatform = '';
+
+function selectPlatform(platform) {
+    selectedPlatform = platform;
+    const selectedInput = document.getElementById('selectedPlatform');
+    const platformHint = document.getElementById('platformHint');
+    
+    // Reset all platform buttons
+    document.querySelectorAll('.platform-btn').forEach(btn => {
+        btn.classList.remove('border-[#6FB8FF]', 'bg-blue-50', 'border-2');
+        btn.classList.add('border-[#E2E8F0]', 'bg-white');
+    });
+    
+    // Highlight selected platform
+    const selectedBtn = document.getElementById(`platform_${platform}`);
+    if (selectedBtn) {
+        selectedBtn.classList.remove('border-[#E2E8F0]', 'bg-white');
+        selectedBtn.classList.add('border-[#6FB8FF]', 'bg-blue-50', 'border-2');
+    }
+    
+    if (selectedInput) selectedInput.value = platform;
+    
+    // Update placeholder and hint
+    const socialUrlInput = document.getElementById('socialUrl');
+    const placeholders = {
+        'youtube': 'Tempel URL Video YouTube di sini... (contoh: https://youtube.com/watch?v=...)',
+        'instagram': 'Tempel URL Post Instagram di sini... (contoh: https://instagram.com/p/...)',
+        'tiktok': 'Tempel URL Video TikTok di sini... (contoh: https://tiktok.com/@user/video/...)',
+        'twitter': 'Tempel URL Tweet Twitter/X di sini... (contoh: https://twitter.com/user/status/...)'
+    };
+    
+    if (socialUrlInput) {
+        socialUrlInput.placeholder = placeholders[platform] || 'Tempel URL post di sini...';
+    }
+    
+    if (platformHint) {
+        const hints = {
+            'youtube': '📹 Paste URL video YouTube untuk menganalisis komentar',
+            'instagram': '📷 Paste URL post Instagram untuk menganalisis komentar',
+            'tiktok': '🎵 Paste URL video TikTok untuk menganalisis komentar',
+            'twitter': '🐦 Paste URL tweet Twitter/X untuk menganalisis balasan'
+        };
+        platformHint.textContent = hints[platform] || 'Pilih platform terlebih dahulu';
+        platformHint.classList.remove('text-[#F5B8C2]');
+        platformHint.classList.add('text-[#94A3B8]');
+    }
+}
+
 async function analyzeSocialMedia() {
     const url = socialUrl.value.trim();
-    if (!url) return;
+    if (!url) {
+        alert('Masukkan URL terlebih dahulu');
+        return;
+    }
+    
+    if (!selectedPlatform) {
+        alert('Pilih platform terlebih dahulu (YouTube, Instagram, TikTok, atau Twitter)');
+        return;
+    }
 
     analyzeSocialBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
     analyzeSocialBtn.disabled = true;
@@ -675,7 +729,10 @@ async function analyzeSocialMedia() {
         const response = await fetch('/api/scrape', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url })
+            body: JSON.stringify({ 
+                url: url,
+                platform: selectedPlatform
+            })
         });
 
         const data = await response.json();
@@ -695,6 +752,16 @@ function renderSocialResults(data) {
     socialNeg.textContent = data.stats.Negatif;
     socialNeu.textContent = data.stats.Netral;
 
+    // Update platform info if available
+    const platformNames = {
+        'youtube': 'YouTube',
+        'instagram': 'Instagram',
+        'tiktok': 'TikTok',
+        'twitter': 'Twitter/X'
+    };
+    
+    const platformName = data.platform ? platformNames[data.platform] || data.platform : 'Media Sosial';
+
     socialCommentsList.innerHTML = data.results.map(item => {
         const style = sentimentStyles[item.sentiment] || sentimentStyles['Netral'];
         return `
@@ -708,6 +775,12 @@ function renderSocialResults(data) {
             </div>
         `;
     }).join('');
+
+    // Update title to show platform
+    const resultTitle = document.querySelector('#socialResult h4');
+    if (resultTitle) {
+        resultTitle.textContent = `Sampel Komentar dari ${platformName}`;
+    }
 
     socialResult.classList.remove('hidden');
 }

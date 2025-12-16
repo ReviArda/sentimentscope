@@ -1,7 +1,8 @@
 import sqlite3
 import os
 
-db_path = os.path.join('instance', 'sentiment.db')
+# Database is in ../instance/sentiment.db
+db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'instance', 'sentiment.db')
 
 def migrate():
     if not os.path.exists(db_path):

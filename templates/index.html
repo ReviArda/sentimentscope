@@ -148,8 +148,9 @@
                         <i class="fas fa-file-csv mr-2"></i>Batch
                     </button>
                     <button id="tab_training" onclick="switchTab('training')"
-                        class="px-6 py-2 rounded-xl text-sm font-medium transition-all duration-200 text-[#667085] hover:text-[#1A1F36]">
-                        <i class="fas fa-dumbbell mr-2"></i>Training
+                        class="px-6 py-2 rounded-xl text-sm font-medium transition-all duration-200 text-[#94A3B8] cursor-not-allowed"
+                        disabled>
+                        <i class="fas fa-dumbbell mr-2"></i>Training (Disabled)
                     </button>
                 </div>
             </div>
@@ -342,17 +343,47 @@
                     <!-- Input Card -->
                     <div class="glass-card rounded-3xl p-8 shadow-soft border border-white/50">
                         <h3 class="text-[#1A1F36] font-bold mb-4 flex items-center gap-2">
-                            <i class="fab fa-youtube text-[#FF0000] text-xl"></i> Analisis Komentar YouTube
+                            <i class="fas fa-hashtag text-[#6FB8FF] text-xl"></i> Analisis Media Sosial
                         </h3>
+                        
+                        <!-- Platform Selection -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-[#3D4458] mb-2">Pilih Platform</label>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <button onclick="selectPlatform('youtube')" id="platform_youtube"
+                                    class="platform-btn px-4 py-3 rounded-xl border-2 border-[#E2E8F0] bg-white hover:border-[#FF0000] hover:bg-red-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
+                                    <i class="fab fa-youtube text-[#FF0000]"></i>
+                                    <span>YouTube</span>
+                                </button>
+                                <button onclick="selectPlatform('instagram')" id="platform_instagram"
+                                    class="platform-btn px-4 py-3 rounded-xl border-2 border-[#E2E8F0] bg-white hover:border-[#E4405F] hover:bg-pink-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
+                                    <i class="fab fa-instagram text-[#E4405F]"></i>
+                                    <span>Instagram</span>
+                                </button>
+                                <button onclick="selectPlatform('tiktok')" id="platform_tiktok"
+                                    class="platform-btn px-4 py-3 rounded-xl border-2 border-[#E2E8F0] bg-white hover:border-[#000000] hover:bg-gray-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
+                                    <i class="fab fa-tiktok text-[#000000]"></i>
+                                    <span>TikTok</span>
+                                </button>
+                                <button onclick="selectPlatform('twitter')" id="platform_twitter"
+                                    class="platform-btn px-4 py-3 rounded-xl border-2 border-[#E2E8F0] bg-white hover:border-[#1DA1F2] hover:bg-blue-50 transition-all text-sm font-medium flex items-center justify-center gap-2">
+                                    <i class="fab fa-twitter text-[#1DA1F2]"></i>
+                                    <span>Twitter/X</span>
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div class="flex gap-3">
                             <input type="text" id="socialUrl"
                                 class="flex-grow bg-[#F8FBFF] border border-[#E2E8F0] rounded-xl px-4 py-3 text-[#1A1F36] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#6FB8FF]/50"
-                                placeholder="Tempel URL Video YouTube di sini...">
+                                placeholder="Tempel URL post di sini...">
+                            <input type="hidden" id="selectedPlatform" value="">
                             <button id="analyzeSocialBtn"
                                 class="bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF] text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all whitespace-nowrap">
                                 Analisis
                             </button>
                         </div>
+                        <p class="text-xs text-[#94A3B8] mt-2" id="platformHint">Pilih platform terlebih dahulu</p>
                     </div>
 
                     <!-- Social Results -->
@@ -395,13 +426,13 @@
                         <h3 class="text-[#1A1F36] font-bold mb-2 flex items-center justify-center gap-2">
                             <i class="fas fa-file-upload text-[#6FB8FF] text-xl"></i> Upload File CSV/Excel
                         </h3>
-                        <p class="text-[#667085] text-sm mb-6">Analisis ribuan ulasan sekaligus. Pastikan ada kolom
+                        <p class="text-[#667085] text-sm mb-6">Analisis ribuan ulasan sekaligus. Dukungan format: CSV, Excel (xlsx/xls), JSON, TXT. Pastikan ada kolom
                             'text', 'review', atau 'komentar'.</p>
 
                         <div id="dropZone"
                             class="border-2 border-dashed border-[#CBD5E1] rounded-2xl p-10 transition-colors hover:border-[#6FB8FF] hover:bg-[#F8FBFF] cursor-pointer relative">
                             <input type="file" id="batchFile"
-                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv, .xlsx">
+                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv, .xlsx, .xls, .json, .txt">
                             <div class="space-y-3 pointer-events-none">
                                 <div
                                     class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-[#6FB8FF]">
@@ -481,51 +512,13 @@
 
         <!-- Training View -->
         <div id="training_view" class="hidden animate-fade-in">
-            <div class="max-w-4xl mx-auto space-y-8">
-                <!-- Upload Card -->
+            <div class="max-w-3xl mx-auto">
                 <div class="glass-card rounded-3xl p-8 shadow-soft border border-white/50 text-center">
                     <h3 class="text-[#1A1F36] font-bold mb-2 flex items-center justify-center gap-2">
-                        <i class="fas fa-dumbbell text-[#6FB8FF] text-xl"></i> Upload Training Data
+                        <i class="fas fa-ban text-[#F5B8C2] text-xl"></i> Training Dinonaktifkan
                     </h3>
-                    <p class="text-[#667085] text-sm mb-6">Upload file CSV dengan kolom 'text' dan 'label'
-                        (Positif/Negatif/Netral) untuk melatih ulang model.</p>
-
-                    <div id="trainDropZone"
-                        class="border-2 border-dashed border-[#CBD5E1] rounded-2xl p-10 transition-colors hover:border-[#6FB8FF] hover:bg-[#F8FBFF] cursor-pointer relative">
-                        <input type="file" id="trainFile"
-                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv">
-                        <div class="space-y-3 pointer-events-none">
-                            <div
-                                class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-[#6FB8FF]">
-                                <i class="fas fa-cloud-upload-alt text-2xl"></i>
-                            </div>
-                            <p class="text-[#3D4458] font-medium">Drag & Drop file CSV di sini</p>
-                            <p class="text-xs text-[#94A3B8]">atau klik untuk memilih file</p>
-                        </div>
-                    </div>
-                    <div id="trainFileInfo"
-                        class="hidden mt-4 flex items-center justify-center gap-3 bg-blue-50 py-2 px-4 rounded-lg inline-flex">
-                        <i class="fas fa-file-alt text-[#6FB8FF]"></i>
-                        <span id="trainFileName" class="text-sm text-[#3D4458] font-medium">filename.csv</span>
-                        <button id="removeTrainFileBtn" class="text-[#F5B8C2] hover:text-red-500"><i
-                                class="fas fa-times"></i></button>
-                    </div>
-
-                    <button id="startTrainingBtn" disabled
-                        class="mt-6 bg-gradient-to-r from-[#6FB8FF] to-[#67AFFF] text-white px-8 py-3 rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                        Mulai Training
-                    </button>
-                </div>
-
-                <!-- Training Status -->
-                <div id="trainingStatus"
-                    class="hidden glass-card rounded-3xl p-6 shadow-soft border border-white/50 text-center">
-                    <div class="animate-pulse">
-                        <i class="fas fa-cog fa-spin text-4xl text-[#6FB8FF] mb-4"></i>
-                        <h4 class="text-[#1A1F36] font-bold mb-2">Sedang Melatih Model...</h4>
-                        <p class="text-[#667085] text-sm">Proses ini mungkin memakan waktu beberapa menit. Mohon
-                            jangan tutup halaman ini.</p>
-                    </div>
+                    <p class="text-[#667085] text-sm mb-4">Fitur training sementara dimatikan. Model akan menggunakan versi yang ada saat ini.</p>
+                    <p class="text-xs text-[#94A3B8]">Hubungi admin jika memerlukan fine-tuning.</p>
                 </div>
             </div>
         </div>
@@ -597,16 +590,17 @@
                         class="glass-card rounded-3xl p-8 hover:-translate-y-2 transition-transform duration-300 border border-white/50 group">
                         <div
                             class="w-14 h-14 rounded-2xl bg-red-50 text-[#EF4444] flex items-center justify-center text-xl mb-6 group-hover:bg-[#EF4444] group-hover:text-white transition-colors">
-                            <i class="fab fa-youtube"></i>
+                            <i class="fas fa-hashtag"></i>
                         </div>
                         <h3 class="text-xl font-bold text-[#1A1F36] mb-3">Social Intelligence</h3>
                         <p class="text-[#667085] text-sm leading-relaxed mb-6">
-                            Pahami opini audiens Anda dengan menarik data komentar langsung dari video YouTube.
+                            Pahami opini audiens Anda dengan menarik data komentar langsung dari berbagai platform media sosial: YouTube, Instagram, TikTok, dan Twitter/X.
                         </p>
                         <div class="bg-[#F8FBFF] rounded-xl p-4 border border-[#EEF2F7]">
                             <h4 class="text-xs font-bold text-[#3D4458] uppercase tracking-wider mb-2">Cara Pakai:</h4>
                             <ol class="list-decimal list-inside text-sm text-[#667085] space-y-1">
-                                <li>Salin URL video YouTube.</li>
+                                <li>Pilih platform (YouTube, Instagram, TikTok, atau Twitter/X).</li>
+                                <li>Salin URL post/video dari platform yang dipilih.</li>
                                 <li>Tempel di kolom input tab <strong>Social</strong>.</li>
                                 <li>Klik <strong>Analisis</strong> dan tunggu hasil.</li>
                             </ol>

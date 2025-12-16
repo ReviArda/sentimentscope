@@ -1,12 +1,12 @@
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 import logging
 import re
+import os
 
 logger = logging.getLogger(__name__)
 
-import os
-
 MODEL_NAME = "w11wo/indonesian-roberta-base-sentiment-classifier"
+# Point to root/fine_tuned_model. Assuming running from root.
 FINE_TUNED_DIR = "./fine_tuned_model"
 _sentiment_pipeline = None
 
@@ -21,10 +21,15 @@ def reload_model():
         # Check if fine-tuned model exists
         target_model = MODEL_NAME
         if os.path.exists(FINE_TUNED_DIR) and os.listdir(FINE_TUNED_DIR):
-            logger.info(f"Found fine-tuned model at {FINE_TUNED_DIR}. Loading...")
+            msg = f"Found fine-tuned model at {FINE_TUNED_DIR}. Loading..."
+            logger.info(msg)
+            print(f"\n[INFO] {msg}") # Explicit print for user visibility
             target_model = FINE_TUNED_DIR
         else:
-            logger.info(f"Loading base IndoBERT model: {MODEL_NAME}...")
+            msg = f"Loading base IndoBERT model: {MODEL_NAME}..."
+            logger.info(msg)
+            print(f"\n[INFO] {msg}")
+
 
         # Load tokenizer and model explicitly
         tokenizer = AutoTokenizer.from_pretrained(target_model)
@@ -75,9 +80,9 @@ def predict_sentiment_bert(text):
             'positive': 'Positif',
             'neutral': 'Netral',
             'negative': 'Negatif',
-            'LABEL_0': 'Negatif',
-            'LABEL_1': 'Netral',
-            'LABEL_2': 'Positif'
+            'LABEL_0': 'Positif', # Config says 0 is positive
+            'LABEL_1': 'Netral', 
+            'LABEL_2': 'Negatif'  # Config says 2 is negative
         }
         
         sentiment = sentiment_map.get(label.lower(), label)

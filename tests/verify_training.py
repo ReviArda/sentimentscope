@@ -5,7 +5,8 @@ import mimetypes
 import uuid
 
 url = 'http://127.0.0.1:5000/api/upload-train-data'
-file_path = 'dummy_train.csv'
+# File is in parent directory
+file_path = os.path.join(os.path.dirname(__file__), '..', 'dummy_train.csv')
 
 if not os.path.exists(file_path):
     print(f"Error: {file_path} not found.")

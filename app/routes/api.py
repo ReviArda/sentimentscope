@@ -1,96 +1,25 @@
-"""
-Flask Backend for Sentiment Classification App
-Enhanced version with logging, better error handling, and input validation
-"""
-
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-import os
+from flask import Blueprint, request, jsonify
+from datetime import datetime
+from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, jwt_required
 import logging
 import pandas as pd
-from datetime import datetime
-from extensions import db, jwt, limiter
-from auth import auth_bp
-from models import Analysis
-from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, jwt_required
-from model_loader import predict_sentiment_bert, predict_aspect_sentiment, is_model_loaded, reload_model
-from scraper import get_youtube_comments
-from train import train
-import threading
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('app.log'),
-        logging.StreamHandler()
-    ]
-)
+from app.extensions import db
+from app.models.user import Analysis
+from app.services.ai_service import predict_sentiment_bert, predict_aspect_sentiment, is_model_loaded
+from app.services.scraping_service import scrape_social_media, detect_platform
+
 logger = logging.getLogger(__name__)
-
-# Initialize Flask application
-app = Flask(__name__)
-CORS(app)  # Enable CORS for API access
-
-# Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sentiment.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'super-secret-key-change-this-in-production'
-
-# Global Training Status
-TRAINING_STATUS = {
-    'is_training': False,
-    'message': '',
-    'timestamp': None
-}
-
-# Initialize Extensions
-db.init_app(app)
-jwt.init_app(app)
-limiter.init_app(app)
-
-# Register Blueprints
-app.register_blueprint(auth_bp)
-
-# Create Database Tables
-with app.app_context():
-    db.create_all()
+api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 # Configuration constants
 MIN_TEXT_LENGTH = 10
 MAX_TEXT_LENGTH = 1000
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/login')
-def login_page():
-    return render_template('login.html')
-
-@app.route('/register')
-def register_page():
-    return render_template('register.html')
-
-@app.route('/api/classify', methods=['POST'])
+@api_bp.route('/classify', methods=['POST'])
 def classify_sentiment():
     """
     API endpoint to classify sentiment from text input
-    {
-        "text_input": "Your text here"
-    }
-    
-    Returns JSON format:
-    {
-        "status": "success",
-        "sentiment": "Positif/Negatif/Netral",
-        "text_length": 123
-    }
-    
-    Error responses:
-    - 400: Invalid input (missing, empty, too short, too long)
-    - 500: Server error during processing
     """
     try:
         # Log incoming request
@@ -202,7 +131,7 @@ def classify_sentiment():
         }), 500
 
 
-@app.route('/api/history', methods=['GET'])
+@api_bp.route('/history', methods=['GET'])
 @jwt_required()
 def get_history():
     """
@@ -227,14 +156,14 @@ def get_history():
     }), 200
 
 
-@app.route('/api/stats/trend', methods=['GET'])
+@api_bp.route('/stats/trend', methods=['GET'])
 @jwt_required()
 def get_sentiment_trend():
     """
     Get daily sentiment counts for the last 7 days
     """
     current_user_id = get_jwt_identity()
-    from sqlalchemy import func, text
+    from sqlalchemy import func
     from datetime import timedelta
     
     # Calculate date 7 days ago
@@ -283,7 +212,7 @@ def get_sentiment_trend():
     return jsonify(response), 200
 
 
-@app.route('/api/stats/wordcloud', methods=['GET'])
+@api_bp.route('/stats/wordcloud', methods=['GET'])
 @jwt_required()
 def get_wordcloud_data():
     """
@@ -331,23 +260,40 @@ def get_wordcloud_data():
     return jsonify(result), 200
 
 
-@app.route('/api/scrape', methods=['POST'])
+@api_bp.route('/scrape', methods=['POST'])
 def scrape_and_analyze():
     """
     Scrape comments from a URL and analyze sentiment
+    Supports: YouTube, Instagram, TikTok, Twitter/X
     """
     try:
         data = request.get_json()
         url = data.get('url')
+        platform = data.get('platform')  # Optional: 'youtube', 'instagram', 'tiktok', 'twitter'
         
         if not url:
             return jsonify({'status': 'error', 'message': 'URL is required'}), 400
-            
+        
+        # Auto-detect platform if not provided
+        if not platform:
+            platform = detect_platform(url)
+            if not platform:
+                return jsonify({
+                    'status': 'error', 
+                    'message': 'Platform tidak didukung. Gunakan URL dari YouTube, Instagram, TikTok, atau Twitter/X'
+                }), 400
+        
         # Limit to 20 comments for performance
-        comments = get_youtube_comments(url, limit=20)
+        try:
+            comments, detected_platform = scrape_social_media(url, platform=platform, limit=20)
+        except ValueError as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 400
         
         if not comments:
-            return jsonify({'status': 'error', 'message': 'No comments found or invalid URL'}), 400
+            return jsonify({
+                'status': 'error', 
+                'message': f'Tidak ada komentar ditemukan atau URL tidak valid untuk {detected_platform}. Pastikan dependensi terpasang dan koneksi tidak diblokir.'
+            }), 400
             
         results = []
         stats = {'Positif': 0, 'Negatif': 0, 'Netral': 0}
@@ -367,21 +313,20 @@ def scrape_and_analyze():
             
         return jsonify({
             'status': 'success',
+            'platform': detected_platform,
             'results': results,
             'stats': stats,
             'total': len(results)
         }), 200
     except Exception as e:
-        logger.error(f"Scrape error: {e}")
+        logger.error(f"Scrape error: {e}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-
-
-@app.route('/api/batch-classify', methods=['POST'])
+@api_bp.route('/batch-classify', methods=['POST'])
 def batch_classify():
     """
-    Classify sentiment for a batch of texts from CSV/Excel file
+    Classify sentiment for a batch of texts from CSV/Excel/JSON/TXT files
     """
     try:
         if 'file' not in request.files:
@@ -391,15 +336,23 @@ def batch_classify():
         if file.filename == '':
             return jsonify({'status': 'error', 'message': 'No selected file'}), 400
             
-        if not (file.filename.endswith('.csv') or file.filename.endswith('.xlsx')):
-            return jsonify({'status': 'error', 'message': 'File must be CSV or Excel'}), 400
+        filename = file.filename.lower()
+        allowed_exts = ('.csv', '.xlsx', '.xls', '.json', '.txt')
+        if not filename.endswith(allowed_exts):
+            return jsonify({'status': 'error', 'message': 'File must be CSV, Excel, JSON, atau TXT'}), 400
             
         # Read file
         try:
-            if file.filename.endswith('.csv'):
+            if filename.endswith('.csv'):
                 df = pd.read_csv(file)
-            else:
+            elif filename.endswith('.xlsx') or filename.endswith('.xls'):
                 df = pd.read_excel(file)
+            elif filename.endswith('.json'):
+                data = pd.read_json(file)
+                df = pd.DataFrame(data)
+            else:  # .txt
+                lines = [l.strip() for l in file.read().decode('utf-8', errors='ignore').splitlines() if l.strip()]
+                df = pd.DataFrame(lines, columns=['text'])
         except Exception as e:
             return jsonify({'status': 'error', 'message': f'Error reading file: {str(e)}'}), 400
             
@@ -408,7 +361,7 @@ def batch_classify():
         possible_cols = ['text', 'review', 'content', 'komentar', 'ulasan', 'comment']
         
         for col in df.columns:
-            if col.lower() in possible_cols:
+            if str(col).lower() in possible_cols:
                 text_col = col
                 break
                 
@@ -457,7 +410,7 @@ def batch_classify():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@app.route('/api/feedback/<int:analysis_id>', methods=['POST'])
+@api_bp.route('/feedback/<int:analysis_id>', methods=['POST'])
 @jwt_required()
 def submit_feedback(analysis_id):
     """
@@ -495,75 +448,30 @@ def submit_feedback(analysis_id):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@app.route('/api/upload-train-data', methods=['POST'])
+@api_bp.route('/upload-train-data', methods=['POST'])
 def upload_train_data():
     """
-    Upload CSV for training and trigger fine-tuning
+    Training feature disabled for now.
     """
-    try:
-        if 'file' not in request.files:
-            return jsonify({'status': 'error', 'message': 'No file part'}), 400
-            
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'status': 'error', 'message': 'No selected file'}), 400
-            
-        if not file.filename.endswith('.csv'):
-            return jsonify({'status': 'error', 'message': 'File must be CSV'}), 400
-            
-        # Save file
-        upload_dir = 'uploads'
-        if not os.path.exists(upload_dir):
-            os.makedirs(upload_dir)
-            
-        filepath = os.path.join(upload_dir, 'training_data.csv')
-        file.save(filepath)
-        
-        # Trigger training in background thread to avoid blocking
-        # Note: In production, use Celery/Redis
-        def run_training():
-            global TRAINING_STATUS
-            TRAINING_STATUS['is_training'] = True
-            TRAINING_STATUS['message'] = 'Training in progress...'
-            TRAINING_STATUS['timestamp'] = datetime.now().isoformat()
-            
-            try:
-                logger.info("Starting background training...")
-                train(data_path=filepath)
-                logger.info("Background training completed.")
-                
-                # Reload the model to use the new weights
-                reload_model()
-                
-                TRAINING_STATUS['message'] = 'Training completed successfully!'
-            except Exception as e:
-                logger.error(f"Training failed: {e}")
-                TRAINING_STATUS['message'] = f'Training failed: {str(e)}'
-            finally:
-                TRAINING_STATUS['is_training'] = False
-
-        thread = threading.Thread(target=run_training)
-        thread.start()
-        
-        return jsonify({
-            'status': 'success', 
-            'message': 'File uploaded. Training started in background.'
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Upload training data error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+    return jsonify({
+        'status': 'error',
+        'message': 'Training sementara dinonaktifkan.'
+    }), 403
 
 
-@app.route('/api/training-status', methods=['GET'])
+@api_bp.route('/training-status', methods=['GET'])
 def get_training_status():
     """
-    Get current training status
+    Training feature disabled.
     """
-    return jsonify(TRAINING_STATUS), 200
+    return jsonify({
+        'is_training': False,
+        'message': 'Training sementara dinonaktifkan.',
+        'timestamp': datetime.now().isoformat()
+    }), 200
 
 
-@app.route('/api/health', methods=['GET'])
+@api_bp.route('/health', methods=['GET'])
 def health_check():
     """
     Health check endpoint to verify server is running
@@ -573,42 +481,3 @@ def health_check():
         'timestamp': datetime.now().isoformat(),
         'model_loaded': is_model_loaded()
     }), 200
-
-
-# Error handlers
-@app.errorhandler(404)
-def not_found(error):
-    logger.warning(f"404 error: {request.url}")
-    return jsonify({
-        'status': 'error',
-        'message': 'Endpoint tidak ditemukan'
-    }), 404
-
-
-@app.errorhandler(405)
-def method_not_allowed(error):
-    logger.warning(f"405 error: {request.method} on {request.url}")
-    return jsonify({
-        'status': 'error',
-        'message': 'Method tidak diizinkan'
-    }), 405
-
-
-@app.errorhandler(500)
-def internal_error(error):
-    logger.error(f"500 error: {error}")
-    return jsonify({
-        'status': 'error',
-        'message': 'Terjadi kesalahan internal server'
-    }), 500
-
-
-if __name__ == '__main__':
-    logger.info("\n" + "="*50)
-    logger.info("Starting Sentiment Classification Application")
-    logger.info("="*50)
-    logger.info("Server running at: http://127.0.0.1:5000")
-    logger.info(f"Character limits: {MIN_TEXT_LENGTH}-{MAX_TEXT_LENGTH}")
-    logger.info("="*50 + "\n")
-    
-    app.run(debug=True, host='127.0.0.1', port=5000)

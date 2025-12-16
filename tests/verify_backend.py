@@ -132,4 +132,4 @@ if __name__ == "__main__":
             if analysis_id:
                 test_feedback(token, analysis_id)
     else:
-        print("\n❌ Server is not running. Please run 'python app.py' first.")
+        print("\n❌ Server is not running. Please run 'python run.py' first.")
